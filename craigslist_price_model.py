@@ -15,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, TargetEncoder
 
+import joblib
 
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
@@ -259,6 +260,17 @@ def main(path: Path, sample_size: int | None = None) -> None:
         y_test,
     )
     print_importance(model, x_test, y_test)
+
+    print("\nTraining final model on all cleaned data...")
+
+    final_model = build_model()
+    final_model.fit(x, y)
+
+    model_path = Path(__file__).resolve().parent / "craigslist_price_model.joblib"
+    joblib.dump(final_model, model_path)
+
+    print(f"Final model saved to: {model_path}")
+    print(f"Final model trained on {len(x):,} rows.")
 
 
 if __name__ == "__main__":

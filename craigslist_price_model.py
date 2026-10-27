@@ -15,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, TargetEncoder
 
+import joblib
 
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
@@ -208,23 +209,23 @@ def evaluate_overfitting_underfitting(
         )
 
 
-# def print_importance(model: Pipeline, x_test: pd.DataFrame, y_test: pd.Series) -> None:
-#     """Report importance by original input column, avoiding one-hot column noise."""
-#     result = permutation_importance(
-#         model,
-#         x_test,
-#         y_test,
-#         scoring="neg_mean_absolute_error",
-#         n_repeats=3,
-#         random_state=RANDOM_STATE,
-#         n_jobs=-1,
-#     )
-#     importance = pd.Series(result.importances_mean, index=x_test.columns).sort_values(
-#         ascending=False
-#     )
-#     print("\nFeature importance (mean increase in MAE when shuffled):")
-#     for feature, value in importance.items():
-#         print(f"  {feature:16s} {value:,.0f} USD")
+def print_importance(model: Pipeline, x_test: pd.DataFrame, y_test: pd.Series) -> None:
+     """Report importance by original input column, avoiding one-hot column noise."""
+     result = permutation_importance(
+         model,
+         x_test,
+         y_test,
+         scoring="neg_mean_absolute_error",
+         n_repeats=3,
+         random_state=RANDOM_STATE,
+         n_jobs=-1,
+     )
+     importance = pd.Series(result.importances_mean, index=x_test.columns).sort_values(
+         ascending=False
+     )
+     print("\nFeature importance (mean increase in MAE when shuffled):")
+     for feature, value in importance.items():
+         print(f"  {feature:16s} {value:,.0f} USD")
 
 
 def main(path: Path, sample_size: int | None = None) -> None:
@@ -258,7 +259,18 @@ def main(path: Path, sample_size: int | None = None) -> None:
         x_test,
         y_test,
     )
-    # print_importance(model, x_test, y_test)
+    print_importance(model, x_test, y_test)
+
+    print("\nTraining final model on all cleaned data...")
+
+    final_model = build_model()
+    final_model.fit(x, y)
+
+    model_path = Path(__file__).resolve().parent / "craigslist_price_model.joblib"
+    joblib.dump(final_model, model_path)
+
+    print(f"Final model saved to: {model_path}")
+    print(f"Final model trained on {len(x):,} rows.")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,237 @@
+
+import pandas as pd
+import joblib
+
+from sklearn.model_selection import train_test_split
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.ensemble import ExtraTreesRegressor
+from sklearn.metrics import mean_absolute_error, root_mean_squared_error
+
+
+df = pd.read_csv("data/vehicles.csv")
+
+target = "price"
+
+features = [
+    "year",
+    "manufacturer",
+    "model",
+    "condition",
+    "cylinders",
+    "fuel",
+    "odometer",
+    "title_status",
+    "transmission",
+    "drive",
+    "size",
+    "type",
+    "paint_color",
+]
+
+
+required_columns = features + [target]
+
+missing_columns = [
+    col for col in required_columns if col not in df.columns
+]
+
+if missing_columns:
+    raise ValueError(
+        f"Disse kolonnene mangler i datasettet: {missing_columns}"
+    )
+
+
+print("\nPrisfordeling før filtrering:")
+print(
+    df[target].describe(
+        percentiles=[0.50, 0.75, 0.90, 0.95, 0.99, 0.995]
+    )
+)
+
+print("\nAntall annonser over ulike prisgrenser:")
+
+for grense in [50_000, 100_000, 200_000, 500_000, 1_000_000]:
+    antall = (df[target] > grense).sum()
+    print(f"Over {grense:>9,} USD: {antall:>7,} annonser")
+
+
+df = df.dropna(subset=[target]).copy()
+df = df[df[target].between(500, 100_000)].copy()
+
+print(f"\nAnnonser etter prisfiltrering: {len(df):,}")
+
+
+sample_size = min(100_000, len(df))
+
+evaluation_df = df.sample(
+    n=sample_size,
+    random_state=42
+).copy()
+
+x = evaluation_df[features]
+y = evaluation_df[target]
+
+x_train, x_test, y_train, y_test = train_test_split(
+    x,
+    y,
+    test_size=0.2,
+    random_state=42
+)
+
+print(f"\nAnnonser brukt til evaluering: {len(evaluation_df):,}")
+print(f"Treningsannonser: {len(x_train):,}")
+print(f"Testannonser:     {len(x_test):,}")
+
+
+numerical_features = [
+    "year",
+    "odometer",
+]
+
+categorical_features = [
+    col for col in features
+    if col not in numerical_features
+]
+
+
+numerical_transformer = Pipeline([
+    (
+        "imputer",
+        SimpleImputer(strategy="median")
+    ),
+])
+
+categorical_transformer = Pipeline([
+    (
+        "imputer",
+        SimpleImputer(strategy="most_frequent")
+    ),
+    (
+        "encoder",
+        OneHotEncoder(
+            handle_unknown="ignore",
+            min_frequency=10
+        )
+    ),
+])
+
+preprocessor = ColumnTransformer([
+    (
+        "num",
+        numerical_transformer,
+        numerical_features
+    ),
+    (
+        "cat",
+        categorical_transformer,
+        categorical_features
+    ),
+])
+
+
+# --------------------------------------------------
+# 8. Opprett Extra Trees-modellen
+# --------------------------------------------------
+# Extra Trees kombinerer prediksjoner fra mange
+# randomiserte beslutningstrær.
+#
+# Pipeline sørger for at preprosesseringen utføres
+# automatisk både under trening og prediksjon.
+
+def create_model():
+    return Pipeline([
+        ("preprocessor", preprocessor),
+        (
+            "regressor",
+            ExtraTreesRegressor(
+                n_estimators=300,
+                min_samples_split=10,
+                min_samples_leaf=5,
+                max_features=0.7,
+                random_state=42,
+                n_jobs=-1
+            )
+        ),
+    ])
+
+
+print("\nTrener Extra Trees for evaluering...")
+
+evaluation_model = create_model()
+evaluation_model.fit(x_train, y_train)
+
+print("Evalueringstrening fullført.")
+
+train_predictions = evaluation_model.predict(x_train)
+test_predictions = evaluation_model.predict(x_test)
+
+train_mae = mean_absolute_error(
+    y_train,
+    train_predictions
+)
+
+test_mae = mean_absolute_error(
+    y_test,
+    test_predictions
+)
+
+train_rmse = root_mean_squared_error(
+    y_train,
+    train_predictions
+)
+
+test_rmse = root_mean_squared_error(
+    y_test,
+    test_predictions
+)
+
+print("\n========== EVALUERINGSRESULTATER ==========")
+
+print("\nTreningssett:")
+print(f"MAE:  {train_mae:,.0f} USD")
+print(f"RMSE: {train_rmse:,.0f} USD")
+
+print("\nTestsett:")
+print(f"MAE:  {test_mae:,.0f} USD")
+print(f"RMSE: {test_rmse:,.0f} USD")
+
+print("\nForskjell mellom trening og test:")
+print(f"MAE-forskjell:  {test_mae - train_mae:,.0f} USD")
+print(f"RMSE-forskjell: {test_rmse - train_rmse:,.0f} USD")
+
+
+print("\nTrener endelig Extra Trees-modell på alle filtrerte annonser...")
+
+final_model = create_model()
+
+final_model.fit(
+    df[features],
+    df[target]
+)
+
+print("Endelig modelltrening fullført.")
+
+
+model_path = "data/Brede/extra_trees_model.joblib"
+
+joblib.dump(final_model, model_path)
+
+print(f"\nModellen er lagret i: {model_path}")
+
+
+print("\n========== OPPSUMMERING ==========")
+print(f"Annonser etter filtrering: {len(df):,}")
+print(f"Annonser brukt i evaluering: {len(evaluation_df):,}")
+print(f"Annonser i evalueringens treningssett: {len(x_train):,}")
+print(f"Annonser i evalueringens testsett: {len(x_test):,}")
+print("Modell: Extra Trees Regressor")
+print("Antall trær: 300")
+print("Minimum observasjoner per oppdeling: 10")
+print("Minimum observasjoner per blad: 5")
+print(f"Test-MAE: {test_mae:,.0f} USD")
+print(f"Test-RMSE: {test_rmse:,.0f} USD")
+print(f"Endelig modell lagret: {model_path}")
+print(f"Endelig modell trent på: {len(df):,} annonser")

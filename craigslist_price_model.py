@@ -208,23 +208,23 @@ def evaluate_overfitting_underfitting(
         )
 
 
-# def print_importance(model: Pipeline, x_test: pd.DataFrame, y_test: pd.Series) -> None:
-#     """Report importance by original input column, avoiding one-hot column noise."""
-#     result = permutation_importance(
-#         model,
-#         x_test,
-#         y_test,
-#         scoring="neg_mean_absolute_error",
-#         n_repeats=3,
-#         random_state=RANDOM_STATE,
-#         n_jobs=-1,
-#     )
-#     importance = pd.Series(result.importances_mean, index=x_test.columns).sort_values(
-#         ascending=False
-#     )
-#     print("\nFeature importance (mean increase in MAE when shuffled):")
-#     for feature, value in importance.items():
-#         print(f"  {feature:16s} {value:,.0f} USD")
+def print_importance(model: Pipeline, x_test: pd.DataFrame, y_test: pd.Series) -> None:
+     """Report importance by original input column, avoiding one-hot column noise."""
+     result = permutation_importance(
+         model,
+         x_test,
+         y_test,
+         scoring="neg_mean_absolute_error",
+         n_repeats=3,
+         random_state=RANDOM_STATE,
+         n_jobs=-1,
+     )
+     importance = pd.Series(result.importances_mean, index=x_test.columns).sort_values(
+         ascending=False
+     )
+     print("\nFeature importance (mean increase in MAE when shuffled):")
+     for feature, value in importance.items():
+         print(f"  {feature:16s} {value:,.0f} USD")
 
 
 def main(path: Path, sample_size: int | None = None) -> None:
@@ -258,7 +258,7 @@ def main(path: Path, sample_size: int | None = None) -> None:
         x_test,
         y_test,
     )
-    # print_importance(model, x_test, y_test)
+    print_importance(model, x_test, y_test)
 
 
 if __name__ == "__main__":
